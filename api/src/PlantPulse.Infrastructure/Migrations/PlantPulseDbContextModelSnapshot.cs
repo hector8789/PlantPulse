@@ -511,6 +511,49 @@ namespace PlantPulse.Infrastructure.Migrations
                     b.ToTable("usuarios", (string)null);
                 });
 
+            modelBuilder.Entity("PlantPulse.Infrastructure.PowerBi.EstadoRefreshPowerBi", b =>
+                {
+                    b.Property<int>("Id")
+                        .HasColumnType("integer")
+                        .HasColumnName("id");
+
+                    b.Property<int>("ConteoDelDia")
+                        .HasColumnType("integer")
+                        .HasColumnName("conteo_del_dia");
+
+                    b.Property<DateOnly?>("FechaConteo")
+                        .HasColumnType("date")
+                        .HasColumnName("fecha_conteo");
+
+                    b.Property<bool>("Pendiente")
+                        .HasColumnType("boolean")
+                        .HasColumnName("pendiente");
+
+                    b.Property<DateTimeOffset?>("SolicitadoEnUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("solicitado_en_utc");
+
+                    b.Property<DateTimeOffset?>("UltimoRefreshUtc")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("ultimo_refresh_utc");
+
+                    b.HasKey("Id")
+                        .HasName("pk_powerbi_refresh_estado");
+
+                    b.ToTable("powerbi_refresh_estado", null, t =>
+                        {
+                            t.HasCheckConstraint("ck_powerbi_refresh_estado_fila_unica", "id = 1");
+                        });
+
+                    b.HasData(
+                        new
+                        {
+                            Id = 1,
+                            ConteoDelDia = 0,
+                            Pendiente = false
+                        });
+                });
+
             modelBuilder.Entity("PlantPulse.Domain.Lineas.Linea", b =>
                 {
                     b.HasOne("PlantPulse.Domain.Plantas.Planta", null)
