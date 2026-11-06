@@ -1,0 +1,12 @@
+{
+  "Information": [
+    "Despliegue: dotnet lambda deploy-serverless --s3-bucket <bucket-de-despliegue>",
+    "El bucket no va en el repo; se pasa en la línea de comandos."
+  ],
+  "profile": "lms-deploy",
+  "region": "us-east-2",
+  "configuration": "Release",
+  "s3-prefix": "plantpulse-api/",
+  "stack-name": "plantpulse-api",
+  "template": "serverless.template"
+}

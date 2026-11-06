@@ -1,0 +1,79 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Transform": "AWS::Serverless-2016-10-31",
+  "Description": "PlantPulse API: ASP.NET Core .NET 10 en AWS Lambda (arm64) detrás de API Gateway HTTP API.",
+  "Parameters": {
+    "SsmPrefijo": {
+      "Type": "String",
+      "Default": "/plantpulse",
+      "Description": "Prefijo de los parámetros de SSM (sin diagonal final)."
+    }
+  },
+  "Resources": {
+    "HttpApi": {
+      "Type": "AWS::Serverless::HttpApi",
+      "Properties": {
+        "DefaultRouteSettings": {
+          "ThrottlingBurstLimit": 50,
+          "ThrottlingRateLimit": 20
+        }
+      }
+    },
+    "ApiLogGroup": {
+      "Type": "AWS::Logs::LogGroup",
+      "Properties": {
+        "LogGroupName": "/aws/lambda/plantpulse-api",
+        "RetentionInDays": 14
+      }
+    },
+    "ApiFunction": {
+      "Type": "AWS::Serverless::Function",
+      "Properties": {
+        "FunctionName": "plantpulse-api",
+        "Handler": "PlantPulse.Api",
+        "Runtime": "dotnet10",
+        "Architectures": [ "arm64" ],
+        "CodeUri": "",
+        "MemorySize": 1024,
+        "Timeout": 29,
+        "LoggingConfig": { "LogGroup": { "Ref": "ApiLogGroup" } },
+        "Environment": {
+          "Variables": {
+            "ASPNETCORE_ENVIRONMENT": "Production",
+            "Aws__SsmPrefijo": { "Ref": "SsmPrefijo" },
+            "TZDIR": "/var/task/zoneinfo"
+          }
+        },
+        "Policies": [
+          "AWSLambdaBasicExecutionRole",
+          {
+            "Statement": [
+              {
+                "Effect": "Allow",
+                "Action": [ "ssm:GetParametersByPath" ],
+                "Resource": [
+                  { "Fn::Sub": "arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter${SsmPrefijo}" },
+                  { "Fn::Sub": "arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter${SsmPrefijo}/*" }
+                ]
+              }
+            ]
+          }
+        ],
+        "Events": {
+          "Raiz": { "Type": "HttpApi", "Properties": { "ApiId": { "Ref": "HttpApi" }, "Path": "/", "Method": "ANY" } },
+          "Proxy": { "Type": "HttpApi", "Properties": { "ApiId": { "Ref": "HttpApi" }, "Path": "/{proxy+}", "Method": "ANY" } }
+        }
+      }
+    }
+  },
+  "Outputs": {
+    "ApiUrl": {
+      "Description": "URL de API Gateway (solo responde con X-Origin-Secret).",
+      "Value": { "Fn::Sub": "https://${HttpApi}.execute-api.${AWS::Region}.amazonaws.com/" }
+    },
+    "HttpApiId": {
+      "Description": "Id del HTTP API, para el api-mapping del dominio propio.",
+      "Value": { "Ref": "HttpApi" }
+    }
+  }
+}
