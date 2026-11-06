@@ -1,0 +1,58 @@
+# PlantPulse completo en local: PostgreSQL + API .NET + frontend React.
+#   docker compose up --build
+#   Web:     http://localhost:5173   (admin@plantpulse.mx / PlantPulse2026!)
+#   Swagger: http://localhost:5077/swagger
+#
+# Power BI y Banxico son opcionales: copia .env.example a .env y llena sus valores.
+# Sin ellos la app funciona; solo los reportes embebidos responden 503.
+
+services:
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: plantpulse
+      POSTGRES_USER: plantpulse
+      POSTGRES_PASSWORD: plantpulse
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U plantpulse -d plantpulse"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  api:
+    build: ./api
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      Database__AplicarMigraciones: "true"
+      ConnectionStrings__PlantPulse: "Host=db;Database=plantpulse;Username=plantpulse;Password=plantpulse"
+      Jwt__Key: ${JWT_KEY:-solo-para-desarrollo-local-cambiala-0123456789}
+      Cors__AllowedOrigins__0: http://localhost:5173
+      # El ERP simulado vive dentro del mismo API.
+      Erp__BaseUrl: http://localhost:8080/erp/odata/
+      Banxico__Token: ${BANXICO_TOKEN:-}
+      PowerBi__TenantId: ${POWERBI_TENANT_ID:-}
+      PowerBi__ClientId: ${POWERBI_CLIENT_ID:-}
+      PowerBi__ClientSecret: ${POWERBI_CLIENT_SECRET:-}
+      PowerBi__WorkspaceId: ${POWERBI_WORKSPACE_ID:-}
+    ports:
+      - "5077:8080"
+
+  web:
+    build:
+      context: ./web
+      args:
+        VITE_API_URL: http://localhost:5077/api
+    depends_on:
+      - api
+    ports:
+      - "5173:80"
+
+volumes:
+  pgdata:

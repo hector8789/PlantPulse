@@ -1,0 +1,13 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/PlantPulse.Api/PlantPulse.Api.csproj" />
+    <Project Path="src/PlantPulse.Application/PlantPulse.Application.csproj" />
+    <Project Path="src/PlantPulse.Domain/PlantPulse.Domain.csproj" />
+    <Project Path="src/PlantPulse.Infrastructure/PlantPulse.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/PlantPulse.Api.IntegrationTests/PlantPulse.Api.IntegrationTests.csproj" />
+    <Project Path="tests/PlantPulse.Application.Tests/PlantPulse.Application.Tests.csproj" />
+    <Project Path="tests/PlantPulse.Domain.Tests/PlantPulse.Domain.Tests.csproj" />
+  </Folder>
+</Solution>

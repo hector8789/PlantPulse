@@ -1,0 +1,8 @@
+# Cada proyecto tiene su propio .gitignore (api/ y web/). Aquí solo lo común.
+.env
+.env.local
+.DS_Store
+Thumbs.db
+.vs/
+.vscode/
+.idea/

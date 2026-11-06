@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>PlantPulse · Prueba de embed de Power BI</title>
+<script src="https://cdn.jsdelivr.net/npm/powerbi-client@2.23.1/dist/powerbi.min.js"></script>
+<style>
+  body { font-family: system-ui, sans-serif; margin: 0; background: #f4f5f7; color: #1f2937; }
+  header { padding: 12px 20px; background: #111827; color: #fff; }
+  form { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 14px 20px; background: #fff; border-bottom: 1px solid #e5e7eb; }
+  label { font-size: 12px; font-weight: 600; display: flex; flex-direction: column; gap: 4px; }
+  input, textarea { font: 12px ui-monospace, monospace; padding: 6px; border: 1px solid #d1d5db; border-radius: 6px; }
+  textarea { height: 60px; resize: vertical; }
+  .full { grid-column: 1 / -1; }
+  button { padding: 8px 16px; border: 0; border-radius: 6px; background: #2563eb; color: #fff; font-weight: 600; cursor: pointer; }
+  #estado { font-size: 13px; align-self: center; }
+  #reporte { height: calc(100vh - 290px); min-height: 480px; margin: 12px 20px; background: #fff; border-radius: 8px; }
+</style>
+</head>
+<body>
+<header><strong>PlantPulse</strong> · Prueba de embed (pega la respuesta de GET /api/powerbi/embed/oee)</header>
+<form id="form">
+  <label class="full">Respuesta JSON completa del endpoint (opcional: llena los campos de abajo)
+    <textarea id="json" placeholder='{ "reportId": "...", "embedUrl": "...", "accessToken": "...", "expiresAtUtc": "..." }'></textarea>
+  </label>
+  <label>reportId <input id="reportId"></label>
+  <label>embedUrl <input id="embedUrl"></label>
+  <label class="full">accessToken (embed token) <textarea id="accessToken"></textarea></label>
+  <div><button type="submit">Mostrar reporte</button></div>
+  <div id="estado"></div>
+</form>
+<div id="reporte"></div>
+
+<script>
+  const $ = id => document.getElementById(id);
+
+  // Si pegan el JSON completo, se reparten los valores en los campos.
+  $("json").addEventListener("input", () => {
+    try {
+      const r = JSON.parse($("json").value);
+      $("reportId").value = r.reportId ?? "";
+      $("embedUrl").value = r.embedUrl ?? "";
+      $("accessToken").value = r.accessToken ?? "";
+      $("estado").textContent = r.expiresAtUtc ? `Token válido hasta ${new Date(r.expiresAtUtc).toLocaleString()}` : "";
+    } catch { /* todavía no es JSON válido */ }
+  });
+
+  $("form").addEventListener("submit", e => {
+    e.preventDefault();
+    const models = window["powerbi-client"].models;
+    const contenedor = $("reporte");
+    powerbi.reset(contenedor);
+
+    const reporte = powerbi.embed(contenedor, {
+      type: "report",
+      id: $("reportId").value.trim(),
+      embedUrl: $("embedUrl").value.trim(),
+      accessToken: $("accessToken").value.trim(),
+      tokenType: models.TokenType.Embed,          // token de la API (App Owns Data), no de Azure AD
+      settings: { panes: { filters: { visible: false }, pageNavigation: { visible: true } } },
+    });
+
+    $("estado").textContent = "Cargando…";
+    reporte.on("loaded", () => $("estado").textContent = "✅ Reporte cargado. Revisa que solo aparezcan las plantas del usuario.");
+    reporte.on("error", ev => {
+      console.error(ev.detail);
+      $("estado").textContent = "❌ " + (ev.detail?.message ?? "Error") + " — " + (ev.detail?.detailedMessage ?? "");
+    });
+  });
+</script>
+</body>
+</html>
