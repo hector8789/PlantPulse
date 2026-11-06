@@ -25,10 +25,17 @@ public interface IPowerBiEmbedService
     Task<EmbedPowerBi> GenerarAsync(string reportKey, string usernameRls, CancellationToken ct);
 }
 
-/// <summary>Cola de refresh del dataset. No bloquea: el refresh real se hace en segundo plano con debounce.</summary>
+/// <summary>
+/// Refresh del dataset con estado persistido en la base (sirve en Lambda y con varias instancias).
+/// Las implementaciones nunca lanzan por fallas de Power BI o de la base: solo registran el error.
+/// </summary>
 public interface IPowerBiRefreshScheduler
 {
-    void Solicitar(string motivo);
+    /// <summary>Marca un refresh pendiente (cierre de turno) e intenta lanzarlo si la política lo permite.</summary>
+    Task SolicitarAsync(string motivo, CancellationToken ct);
+
+    /// <summary>Lanza el refresh pendiente si ya se cumplen la ventana, el intervalo y el máximo diario.</summary>
+    Task IntentarPendienteAsync(CancellationToken ct);
 }
 
 /// <summary>
@@ -58,41 +65,34 @@ public static class IdentidadRls
     }
 }
 
+/// <summary>Estado persistido del refresh (una sola fila en la base).</summary>
+public sealed record EstadoRefresh(
+    bool Pendiente,
+    DateTimeOffset? SolicitadoEnUtc,
+    DateTimeOffset? UltimoRefreshUtc,
+    DateOnly? FechaConteo,
+    int ConteoDelDia);
+
 /// <summary>
-/// Cuándo se puede refrescar el dataset. Agrupa los cierres que llegan juntos (fin de turno de varias líneas),
-/// respeta un intervalo mínimo entre refreshes y un máximo diario (Power BI Pro permite 8 al día;
-/// Premium/Fabric/Embedded, 48 programados o más por API). Clase pura para poder probarla.
+/// Cuándo se puede refrescar el dataset. Agrupa los cierres que llegan juntos (la primera solicitud pendiente
+/// debe tener al menos la ventana de agrupación), respeta un intervalo mínimo entre refreshes y un máximo
+/// diario en UTC (Power BI Pro permite 8 al día). Clase pura para poder probarla.
 /// </summary>
 public sealed class PoliticaRefresh(TimeSpan ventanaAgrupacion, TimeSpan intervaloMinimo, int maximoPorDia)
 {
-    private readonly List<DateTimeOffset> _refreshes = [];
-
     public TimeSpan VentanaAgrupacion { get; } = ventanaAgrupacion;
     public TimeSpan IntervaloMinimo { get; } = intervaloMinimo;
     public int MaximoPorDia { get; } = maximoPorDia;
 
-    public DateTimeOffset? UltimoRefresh => _refreshes.Count == 0 ? null : _refreshes[^1];
+    public static int RefreshesDelDia(EstadoRefresh estado, DateTimeOffset ahoraUtc) =>
+        estado.FechaConteo == DateOnly.FromDateTime(ahoraUtc.UtcDateTime) ? estado.ConteoDelDia : 0;
 
-    public int RefreshesDelDia(DateTimeOffset ahoraUtc) =>
-        _refreshes.Count(r => r.UtcDateTime.Date == ahoraUtc.UtcDateTime.Date);
-
-    /// <summary>Cuánto esperar, desde ahora, antes de lanzar el siguiente refresh.</summary>
-    public TimeSpan CalcularEspera(DateTimeOffset ahoraUtc)
+    public bool PuedeRefrescar(EstadoRefresh estado, DateTimeOffset ahoraUtc)
     {
-        if (RefreshesDelDia(ahoraUtc) >= MaximoPorDia)
-        {
-            var manana = new DateTimeOffset(ahoraUtc.UtcDateTime.Date.AddDays(1), TimeSpan.Zero);
-            return manana - ahoraUtc + VentanaAgrupacion;
-        }
-
-        var porIntervalo = UltimoRefresh is { } ultimo ? ultimo + IntervaloMinimo - ahoraUtc : TimeSpan.Zero;
-        return porIntervalo > VentanaAgrupacion ? porIntervalo : VentanaAgrupacion;
-    }
-
-    public void Registrar(DateTimeOffset ahoraUtc)
-    {
-        _refreshes.Add(ahoraUtc);
-        _refreshes.RemoveAll(r => r < ahoraUtc.AddDays(-2));
+        if (!estado.Pendiente || estado.SolicitadoEnUtc is not { } solicitado) return false;
+        if (ahoraUtc - solicitado < VentanaAgrupacion) return false;
+        if (estado.UltimoRefreshUtc is { } ultimo && ahoraUtc - ultimo < IntervaloMinimo) return false;
+        return RefreshesDelDia(estado, ahoraUtc) < MaximoPorDia;
     }
 }
 
@@ -110,7 +110,8 @@ public sealed class ObtenerEmbedPowerBiValidator : AbstractValidator<ObtenerEmbe
         RuleFor(x => x.ReportKey).NotEmpty().WithMessage("La clave del reporte es obligatoria.").MaximumLength(50);
 }
 
-public sealed class ObtenerEmbedPowerBiHandler(IPowerBiEmbedService powerBi, IPlantaRepository plantas, ICurrentUser usuario)
+public sealed class ObtenerEmbedPowerBiHandler(
+    IPowerBiEmbedService powerBi, IPlantaRepository plantas, ICurrentUser usuario, IPowerBiRefreshScheduler refresh)
     : IRequestHandler<ObtenerEmbedPowerBiQuery, EmbedPowerBiDto>
 {
     public async Task<EmbedPowerBiDto> Handle(ObtenerEmbedPowerBiQuery request, CancellationToken ct)
@@ -118,6 +119,10 @@ public sealed class ObtenerEmbedPowerBiHandler(IPowerBiEmbedService powerBi, IPl
         powerBi.Validar(request.ReportKey);
         var visibles = await plantas.ListarAsync(usuario.PlantasVisibles(request.PlantaId), ct);
         var username = IdentidadRls.Crear(visibles.Select(p => p.Codigo));
+
+        // Abrir un reporte es el otro momento en que se atiende un refresh pendiente (en Lambda no hay
+        // proceso en segundo plano). Nunca lanza: si falla, el reporte se muestra con los datos anteriores.
+        await refresh.IntentarPendienteAsync(ct);
 
         var embed = await powerBi.GenerarAsync(request.ReportKey, username, ct);
         return new EmbedPowerBiDto(embed.ReportId, embed.EmbedUrl, embed.AccessToken, embed.ExpiresAtUtc);

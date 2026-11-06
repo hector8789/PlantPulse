@@ -102,10 +102,8 @@ public static class DependencyInjection
         services.AddSingleton<IPowerBiEmbedService>(sp => sp.GetRequiredService<PowerBiEmbedService>());
         services.AddSingleton<IPowerBiDatasetRefresher>(sp => sp.GetRequiredService<PowerBiEmbedService>());
 
-        // El mismo objeto es la cola (IPowerBiRefreshScheduler) y el proceso en segundo plano que la atiende.
-        services.AddSingleton<PowerBiRefreshWorker>();
-        services.AddSingleton<IPowerBiRefreshScheduler>(sp => sp.GetRequiredService<PowerBiRefreshWorker>());
-        services.AddHostedService(sp => sp.GetRequiredService<PowerBiRefreshWorker>());
+        // Scoped: usa el DbContext de la petición. El estado del refresh vive en la base (sirve en Lambda).
+        services.AddScoped<IPowerBiRefreshScheduler, PowerBiRefreshCoordinator>();
     }
 
     /// <summary>
