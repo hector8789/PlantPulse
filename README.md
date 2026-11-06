@@ -10,10 +10,9 @@ Aplicación web empresarial para plantas de manufactura. El supervisor captura l
 
 > Proyecto de portafolio de [Hector Alvarado Venegas](https://github.com/hector8789) — Senior Full Stack Developer (.NET · React · SQL · SAP).
 
-<!-- Capturas: guarda las imágenes en docs/img/ y descomenta estas líneas.
-![Captura de turno](docs/img/captura-turno.png)
-![Reporte de Power BI embebido](docs/img/reporte-oee.png)
--->
+![Turnos y captura por línea con OEE por turno](docs/img/turnos-captura.png)
+
+![Reporte de Power BI embebido con RLS: el supervisor de León solo ve su planta](docs/img/reporte-powerbi-oee.png)
 
 ## Qué demuestra
 
