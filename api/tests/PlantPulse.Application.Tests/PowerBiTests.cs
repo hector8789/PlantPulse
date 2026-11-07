@@ -31,7 +31,19 @@ internal sealed class FakePowerBi : IPowerBiEmbedService
 internal sealed class FakeRefresh : IPowerBiRefreshScheduler
 {
     public List<string> Solicitudes { get; } = [];
-    public void Solicitar(string motivo) => Solicitudes.Add(motivo);
+    public int Intentos { get; private set; }
+
+    public Task SolicitarAsync(string motivo, CancellationToken ct)
+    {
+        Solicitudes.Add(motivo);
+        return Task.CompletedTask;
+    }
+
+    public Task IntentarPendienteAsync(CancellationToken ct)
+    {
+        Intentos++;
+        return Task.CompletedTask;
+    }
 }
 
 public class IdentidadRlsTests
@@ -48,33 +60,40 @@ public class IdentidadRlsTests
 public class PoliticaRefreshTests
 {
     private static readonly DateTimeOffset T0 = new(2026, 11, 5, 14, 0, 0, TimeSpan.Zero);
+    private static readonly DateOnly Hoy = DateOnly.FromDateTime(T0.UtcDateTime);
     private static PoliticaRefresh Politica() => new(TimeSpan.FromSeconds(60), TimeSpan.FromMinutes(30), 3);
 
+    private static EstadoRefresh Pendiente(DateTimeOffset solicitado, DateTimeOffset? ultimo = null, DateOnly? fecha = null, int conteo = 0) =>
+        new(true, solicitado, ultimo, fecha, conteo);
+
     [Fact]
-    public void Primer_refresh_espera_solo_la_ventana_de_agrupacion() =>
-        Assert.Equal(TimeSpan.FromSeconds(60), Politica().CalcularEspera(T0));
+    public void Sin_pendiente_no_refresca() =>
+        Assert.False(Politica().PuedeRefrescar(new EstadoRefresh(false, null, null, null, 0), T0));
+
+    [Fact]
+    public void Espera_la_ventana_de_agrupacion_desde_la_primera_solicitud()
+    {
+        Assert.False(Politica().PuedeRefrescar(Pendiente(T0), T0.AddSeconds(59)));
+        Assert.True(Politica().PuedeRefrescar(Pendiente(T0), T0.AddSeconds(60)));
+    }
 
     [Fact]
     public void Respeta_el_intervalo_minimo_desde_el_ultimo()
     {
-        var p = Politica();
-        p.Registrar(T0);
-        Assert.Equal(TimeSpan.FromMinutes(20), p.CalcularEspera(T0.AddMinutes(10)));
-        Assert.Equal(TimeSpan.FromSeconds(60), p.CalcularEspera(T0.AddMinutes(45)));
+        var estado = Pendiente(T0.AddMinutes(5), ultimo: T0, fecha: Hoy, conteo: 1);
+        Assert.False(Politica().PuedeRefrescar(estado, T0.AddMinutes(29)));
+        Assert.True(Politica().PuedeRefrescar(estado, T0.AddMinutes(30)));
     }
 
     [Fact]
-    public void Al_llegar_al_maximo_diario_espera_al_dia_siguiente()
+    public void Al_llegar_al_maximo_diario_espera_al_dia_siguiente_utc()
     {
-        var p = Politica();
-        p.Registrar(T0);
-        p.Registrar(T0.AddHours(1));
-        p.Registrar(T0.AddHours(2));
+        var estado = Pendiente(T0, ultimo: T0.AddHours(-2), fecha: Hoy, conteo: 3);
+        Assert.False(Politica().PuedeRefrescar(estado, T0.AddHours(3)));
 
-        var espera = p.CalcularEspera(T0.AddHours(3));   // 17:00 UTC → mañana 00:00 + 60 s
-
-        Assert.Equal(TimeSpan.FromHours(7) + TimeSpan.FromSeconds(60), espera);
-        Assert.Equal(0, p.RefreshesDelDia(T0.AddHours(3) + espera));
+        var manana = new DateTimeOffset(T0.UtcDateTime.Date.AddDays(1), TimeSpan.Zero);
+        Assert.Equal(0, PoliticaRefresh.RefreshesDelDia(estado, manana));
+        Assert.True(Politica().PuedeRefrescar(estado, manana));
     }
 }
 
@@ -86,7 +105,7 @@ public class PowerBiHandlersTests
     public async Task Supervisor_recibe_rls_solo_de_su_planta()
     {
         var pbi = new FakePowerBi();
-        var dto = await new ObtenerEmbedPowerBiHandler(pbi, _m.Plantas, _m.Supervisor(_m.Leon)).Handle(new("oee", null), default);
+        var dto = await new ObtenerEmbedPowerBiHandler(pbi, _m.Plantas, _m.Supervisor(_m.Leon), new FakeRefresh()).Handle(new("oee", null), default);
 
         Assert.Equal("LEO", pbi.UltimoUsername);
         Assert.Equal("tok", dto.AccessToken);
@@ -96,7 +115,7 @@ public class PowerBiHandlersTests
     public async Task Admin_recibe_todas_las_plantas_y_puede_acotar_a_una()
     {
         var pbi = new FakePowerBi();
-        var handler = new ObtenerEmbedPowerBiHandler(pbi, _m.Plantas, Mundo.Admin());
+        var handler = new ObtenerEmbedPowerBiHandler(pbi, _m.Plantas, Mundo.Admin(), new FakeRefresh());
 
         await handler.Handle(new("oee", null), default);
         Assert.Equal("LEO|SIL", pbi.UltimoUsername);
@@ -108,12 +127,12 @@ public class PowerBiHandlersTests
     [Fact]
     public async Task Acotar_a_planta_ajena_es_403() =>
         await Assert.ThrowsAsync<ForbiddenAccessException>(() =>
-            new ObtenerEmbedPowerBiHandler(new FakePowerBi(), _m.Plantas, _m.Supervisor(_m.Leon)).Handle(new("oee", _m.Silao.Id), default));
+            new ObtenerEmbedPowerBiHandler(new FakePowerBi(), _m.Plantas, _m.Supervisor(_m.Leon), new FakeRefresh()).Handle(new("oee", _m.Silao.Id), default));
 
     [Fact]
     public async Task Reporte_inexistente_es_404() =>
         await Assert.ThrowsAsync<NotFoundException>(() =>
-            new ObtenerEmbedPowerBiHandler(new FakePowerBi(), _m.Plantas, Mundo.Admin()).Handle(new("no-existe", null), default));
+            new ObtenerEmbedPowerBiHandler(new FakePowerBi(), _m.Plantas, Mundo.Admin(), new FakeRefresh()).Handle(new("no-existe", null), default));
 
     [Fact]
     public async Task Cerrar_un_turno_solicita_refresh()
@@ -125,5 +144,14 @@ public class PowerBiHandlersTests
             .Handle(new DomainEventNotification<TurnoLineaCerrado>(evento), default);
 
         Assert.Single(refresh.Solicitudes);
+    }
+
+    [Fact]
+    public async Task Pedir_un_embed_atiende_el_refresh_pendiente()
+    {
+        var refresh = new FakeRefresh();
+        await new ObtenerEmbedPowerBiHandler(new FakePowerBi(), _m.Plantas, Mundo.Admin(), refresh).Handle(new("oee", null), default);
+
+        Assert.Equal(1, refresh.Intentos);
     }
 }

@@ -31,7 +31,7 @@ public partial class ModeloEfTests
             .Select(e => e.GetTableName()).OrderBy(n => n).ToList();
 
         Assert.Equal(
-            new[] { "causas_paro", "lineas", "ordenes_produccion", "plantas", "registros_paro", "registros_produccion", "tipos_cambio", "turnos", "turnos_linea", "usuarios" },
+            new[] { "causas_paro", "lineas", "ordenes_produccion", "plantas", "powerbi_refresh_estado", "registros_paro", "registros_produccion", "tipos_cambio", "turnos", "turnos_linea", "usuarios" },
             tablas.ToArray());
     }
 

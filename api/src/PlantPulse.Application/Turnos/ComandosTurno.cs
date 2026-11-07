@@ -213,18 +213,17 @@ public sealed class ReabrirTurnoHandler(
 }
 
 /// <summary>
-/// Al cerrar un turno se pide el refresh del dataset de Power BI. Es asíncrono y agrupado:
-/// cerrar las 5 líneas al fin de turno produce un solo refresh.
+/// Al cerrar un turno se pide el refresh del dataset de Power BI. Se agrupa: los cierres que llegan juntos
+/// quedan en un solo refresh pendiente, que se lanza en un cierre o una apertura de reporte posterior.
 /// </summary>
 public sealed class TurnoLineaCerradoHandler(IPowerBiRefreshScheduler refresh, ILogger<TurnoLineaCerradoHandler> logger)
     : INotificationHandler<DomainEventNotification<TurnoLineaCerrado>>
 {
-    public Task Handle(DomainEventNotification<TurnoLineaCerrado> notification, CancellationToken ct)
+    public async Task Handle(DomainEventNotification<TurnoLineaCerrado> notification, CancellationToken ct)
     {
         var e = notification.Evento;
         logger.LogInformation("Turno {TurnoLineaId} cerrado (planta {PlantaId}, {Fecha}); se solicita refresh de Power BI.",
             e.TurnoLineaId, e.PlantaId, e.FechaOperativa);
-        refresh.Solicitar($"Cierre del turno {e.TurnoLineaId}");
-        return Task.CompletedTask;
+        await refresh.SolicitarAsync($"Cierre del turno {e.TurnoLineaId}", ct);
     }
 }

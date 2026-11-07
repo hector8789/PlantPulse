@@ -1,11 +1,12 @@
 using System.Net;
 using System.Net.Http.Json;
-using Microsoft.AspNetCore.Mvc.Testing;
 
 namespace PlantPulse.Api.IntegrationTests;
 
-public sealed class CorsTests(WebApplicationFactory<Program> factory)
-    : IClassFixture<WebApplicationFactory<Program>>
+// PlantPulseApiFactory (y no WebApplicationFactory<Program> a secas): trae Jwt:Key de prueba. Sin ella, en la CI
+// (sin user-secrets) el middleware de autenticación falla en GET /api/health.
+public sealed class CorsTests(PlantPulseApiFactory factory)
+    : IClassFixture<PlantPulseApiFactory>
 {
     private const string ReactOrigin = "http://localhost:5173";
     private const string AllowOriginHeader = "Access-Control-Allow-Origin";

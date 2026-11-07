@@ -1,0 +1,18 @@
+{
+  // Frontend de PlantPulse en Cloudflare Workers (solo assets estáticos, sin script).
+  // Despliegue: npm run build  →  npx wrangler@4 deploy
+  "$schema": "https://unpkg.com/wrangler@4/config-schema.json",
+  "name": "plantpulse-web",
+  "compatibility_date": "2026-11-01",
+  "assets": {
+    "directory": "./dist",
+    // SPA: las rutas de React Router (p. ej. /turnos/123) responden con index.html.
+    "not_found_handling": "single-page-application"
+  },
+  // Wrangler crea el registro DNS y el certificado del dominio propio.
+  "routes": [
+    { "pattern": "plantpulse.edensoft.com.mx", "custom_domain": true }
+  ],
+  "workers_dev": false,
+  "preview_urls": false
+}

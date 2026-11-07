@@ -5,6 +5,9 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <UserSecretsId>b2cb5c98-c66a-4519-ae5f-4d0799f54222</UserSecretsId>
+    <!-- AWS Lambda (Amazon.Lambda.Tools) -->
+    <AWSProjectType>Lambda</AWSProjectType>
+    <GenerateRuntimeConfigurationFiles>true</GenerateRuntimeConfigurationFiles>
   </PropertyGroup>
 
   <ItemGroup>
@@ -13,12 +16,20 @@
   </ItemGroup>
 
   <ItemGroup>
+    <PackageReference Include="Amazon.Extensions.Configuration.SystemsManager" Version="7.1.1" />
+    <PackageReference Include="Amazon.Lambda.AspNetCoreServer.Hosting" Version="2.2.1" />
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.*" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.*">
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.14">
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
     <PackageReference Include="Swashbuckle.AspNetCore" Version="10.3.1" />
+  </ItemGroup>
+
+  <!-- Zona horaria de las plantas. El runtime de Lambda puede no traer tzdata: se empaqueta
+       y se usa con TZDIR=/var/task/zoneinfo (ver serverless.template). -->
+  <ItemGroup>
+    <None Include="zoneinfo\**" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

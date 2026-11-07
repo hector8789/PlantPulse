@@ -20,6 +20,10 @@ public static class DependencyInjection
     /// <summary>Nombre de la cadena en user-secrets: <c>ConnectionStrings:PlantPulse</c>.</summary>
     public const string ConnectionStringName = "PlantPulse";
 
+    // Mismos valores que OriginSecretMiddleware (capa Api).
+    private const string OriginSecretConfigKey = "OriginSecret";
+    private const string OriginSecretHeader = "X-Origin-Secret";
+
     public static IServiceCollection AddInfrastructure(
         this IServiceCollection services,
         IConfiguration configuration)
@@ -82,6 +86,11 @@ public static class DependencyInjection
                     throw new InvalidOperationException(
                         "Falta 'Erp:BaseUrl' (p. ej. https://localhost:7001/erp/odata/) en appsettings.Development.json.");
                 http.BaseAddress = new Uri(baseUrl.EndsWith('/') ? baseUrl : baseUrl + "/");
+
+                // El ERP simulado vive en la misma API: en producción la llamada pasa por el filtro de origen.
+                var origen = configuration[OriginSecretConfigKey];
+                if (!string.IsNullOrWhiteSpace(origen))
+                    http.DefaultRequestHeaders.Add(OriginSecretHeader, origen);
             })
             .AddStandardResilienceHandler(ConfigurarResiliencia);
 
@@ -102,10 +111,8 @@ public static class DependencyInjection
         services.AddSingleton<IPowerBiEmbedService>(sp => sp.GetRequiredService<PowerBiEmbedService>());
         services.AddSingleton<IPowerBiDatasetRefresher>(sp => sp.GetRequiredService<PowerBiEmbedService>());
 
-        // El mismo objeto es la cola (IPowerBiRefreshScheduler) y el proceso en segundo plano que la atiende.
-        services.AddSingleton<PowerBiRefreshWorker>();
-        services.AddSingleton<IPowerBiRefreshScheduler>(sp => sp.GetRequiredService<PowerBiRefreshWorker>());
-        services.AddHostedService(sp => sp.GetRequiredService<PowerBiRefreshWorker>());
+        // Scoped: usa el DbContext de la petición. El estado del refresh vive en la base (sirve en Lambda).
+        services.AddScoped<IPowerBiRefreshScheduler, PowerBiRefreshCoordinator>();
     }
 
     /// <summary>
