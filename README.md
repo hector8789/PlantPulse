@@ -19,7 +19,7 @@ Aplicación web empresarial para plantas de manufactura. El supervisor captura l
 | Área | Implementación |
 |---|---|
 | **Backend .NET** | API REST en .NET 10 con **Clean Architecture** (Domain / Application / Infrastructure / Api), **CQRS con MediatR**, validación con FluentValidation, EF Core + PostgreSQL, **JWT con roles** y acceso por planta, errores como **ProblemDetails** (400/401/403/404/409/422/503). |
-| **Dominio rico** | El agregado `TurnoLinea` protege las reglas: ventana de captura de 7 días, paros sin traslape y dentro del turno, turno cerrado inmutable, evento de dominio `TurnoLineaCerrado`. [Reglas de negocio](docs/reglas-de-negocio.md). |
+| **Reglas de negocio e invariantes del dominio** | El agregado `TurnoLinea` protege las reglas: ventana de captura de 7 días, paros sin traslape y dentro del turno, turno cerrado inmutable, evento de dominio `TurnoLineaCerrado`. [Reglas de negocio](docs/reglas-de-negocio.md). |
 | **Power BI** | **Power BI Embedded (App Owns Data)**: el API se autentica como *service principal*, genera el **embed token con RLS** (`PorPlanta`) y lanza el **refresh del dataset** al cerrar un turno, agrupando peticiones para respetar los límites. Modelo en copo de nieve sobre vistas `bi.*` y medidas DAX. [Guía de Power BI](docs/power-bi.md). |
 | **Integraciones** | Cliente **OData** para órdenes de producción de un ERP simulado (estilo SAP, con estados TECO) y cliente de la **API SIE de Banxico** (serie FIX SF43718). Ambos con **Polly** (reintentos exponenciales con *jitter*). |
 | **Frontend** | React 19 + TypeScript + Vite, TanStack Query, Zustand, React Hook Form + Zod, Tailwind CSS. Captura de turnos y paros, dashboard de OEE, **exportación a Excel**, reportes embebidos con **renovación automática del token**. |
