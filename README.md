@@ -10,6 +10,19 @@ Aplicación web empresarial para plantas de manufactura. El supervisor captura l
 
 > Proyecto de portafolio de [Hector Alvarado Venegas](https://github.com/hector8789) — Senior Full Stack Developer (.NET · React · SQL · SAP).
 
+## 🌐 Demo en vivo
+
+**https://plantpulse.edensoft.com.mx**
+
+| Usuario | Contraseña | Para ver |
+|---|---|---|
+| `supervisor.leon@plantpulse.mx` | `PlantPulse2026!` | Captura de turnos y paros, OEE y reportes de Power BI **solo de Planta León** (RLS) |
+| `gerente@plantpulse.mx` | `PlantPulse2026!` | Vista de **solo lectura** de las dos plantas |
+
+**Recorrido sugerido (2 min):** entra como `supervisor.leon` → **OEE** → **Turnos y captura** (abre un turno cerrado para ver el desglose) → **Reportes Power BI** (solo aparece Planta León) → sal y entra como `gerente` para ver ambas plantas sin botones de captura.
+
+> El reporte embebido muestra la etiqueta *"versión de prueba gratuita"* porque el workspace usa la licencia de prueba de Power BI Pro, no una capacidad dedicada.
+
 ![Turnos y captura por línea con OEE por turno](docs/img/turnos-captura.png)
 
 ![Reporte de Power BI embebido con RLS: el supervisor de León solo ve su planta](docs/img/reporte-powerbi-oee.png)
@@ -23,7 +36,8 @@ Aplicación web empresarial para plantas de manufactura. El supervisor captura l
 | **Power BI** | **Power BI Embedded (App Owns Data)**: el API se autentica como *service principal*, genera el **embed token con RLS** (`PorPlanta`) y lanza el **refresh del dataset** al cerrar un turno, agrupando peticiones para respetar los límites. Modelo en copo de nieve sobre vistas `bi.*` y medidas DAX. [Guía de Power BI](docs/power-bi.md). |
 | **Integraciones** | Cliente **OData** para órdenes de producción de un ERP simulado (estilo SAP, con estados TECO) y cliente de la **API SIE de Banxico** (serie FIX SF43718). Ambos con **Polly** (reintentos exponenciales con *jitter*). |
 | **Frontend** | React 19 + TypeScript + Vite, TanStack Query, Zustand, React Hook Form + Zod, Tailwind CSS. Captura de turnos y paros, dashboard de OEE, **exportación a Excel**, reportes embebidos con **renovación automática del token**. |
-| **Calidad** | 150+ pruebas en xUnit (dominio, aplicación e integración con `WebApplicationFactory`) y 40 en Vitest + Testing Library. CI en GitHub Actions. |
+| **Calidad** | 170+ pruebas en xUnit (dominio, aplicación e integración con `WebApplicationFactory`) y 40 en Vitest + Testing Library. CI en GitHub Actions (build, pruebas, lint e imágenes Docker). |
+| **Producción (serverless)** | API en **AWS Lambda** (.NET 10, ARM64) detrás de **API Gateway HTTP API**, secretos en **SSM Parameter Store**, base en **Neon** (PostgreSQL 17 serverless, con branches de respaldo), frontend en **Cloudflare Workers** y **Cloudflare** como proxy que agrega un header secreto: el origen rechaza lo que no llegue por ahí. [Despliegue](docs/despliegue.md). |
 
 ## Arquitectura
 
@@ -67,7 +81,7 @@ docs/                               Reglas de negocio · contrato API · guía d
 - **Scrap** en piezas y su costo en MXN y USD.
 - **Plan contra real** por orden de producción.
 
-Los resultados del API y de Power BI coinciden con los datos demo: **OEE total 74.64%** (León 73.21%, Silao 76.75%).
+Los resultados del API y de Power BI coinciden cifra por cifra, validado en local y en producción (con los datos demo de producción: **OEE total 75.40%**; LEO-L01 75.92%, LEO-L02 70.54%, LEO-L03 76.26%, SIL-L01 77.94%, SIL-L02 76.39%).
 
 ## Correrlo en local
 
@@ -120,6 +134,7 @@ cd web && npm test
 - [Reglas de negocio](docs/reglas-de-negocio.md)
 - [Contrato del API](docs/contrato-api.md)
 - [Power BI Embedded: modelo, DAX, RLS y refresh](docs/power-bi.md)
+- [Despliegue en producción (AWS Lambda · Neon · Cloudflare)](docs/despliegue.md)
 
 ## Licencia
 [MIT](LICENSE)
